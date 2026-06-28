@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+  jupyter:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: spotify_recommendation_jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      # Mount data and notebooks so changes persist on the host
+      - ../data:/app/data
+      - ../notebooks:/app/notebooks
+      - ../models:/app/models
+      - ../reports:/app/reports
+    environment:
+      - PYTHONPATH=/app
+    restart: unless-stopped
