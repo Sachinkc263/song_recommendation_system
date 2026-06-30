@@ -1,19 +1,64 @@
 version: "3.9"
 
+# ── Spotify Music Recommendation System ──────────────────────
+# Services:
+#   api      → FastAPI backend on port 8000
+#   frontend → React app served by Nginx on port 80
+#   jupyter  → Notebook environment on port 8888 (dev only)
+#
+# Usage:
+#   docker-compose up api frontend       # production
+#   docker-compose up jupyter            # notebook development
+#   docker-compose up                    # everything
+
 services:
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: recommender_api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount data and models so they are read from the host filesystem.
+      # Run notebooks 01-05 on the host first to generate these files.
+      - ./data:/app/data
+      - ./models:/app/models
+    environment:
+      - PYTHONPATH=/app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: recommender_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
   jupyter:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    container_name: spotify_recommendation_jupyter
+      context: .
+      dockerfile: docker/Dockerfile.jupyter
+    container_name: recommender_jupyter
     ports:
       - "8888:8888"
     volumes:
-      # Mount data and notebooks so changes persist on the host
-      - ../data:/app/data
-      - ../notebooks:/app/notebooks
-      - ../models:/app/models
-      - ../reports:/app/reports
+      - ./data:/app/data
+      - ./notebooks:/app/notebooks
+      - ./models:/app/models
+      - ./reports:/app/reports
     environment:
       - PYTHONPATH=/app
+    profiles:
+      - dev
     restart: unless-stopped

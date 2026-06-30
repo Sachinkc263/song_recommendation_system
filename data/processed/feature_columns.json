@@ -1,0 +1,16 @@
+[
+  "valence",
+  "acousticness",
+  "danceability",
+  "energy",
+  "loudness",
+  "log_instrumentalness",
+  "log_speechiness",
+  "log_liveness",
+  "tempo_norm",
+  "key_sin",
+  "key_cos",
+  "mode",
+  "explicit_int",
+  "popularity_norm"
+]

@@ -1,16 +1,20 @@
-# Core data science
+# ── Core data science ─────────────────────────────────────────
 numpy==1.26.4
 pandas==2.2.2
 scikit-learn==1.5.0
 
-# Visualisation
+# ── Visualisation (used in notebooks) ────────────────────────
 matplotlib==3.9.0
 seaborn==0.13.2
 
-# Notebook
+# ── Notebook environment ──────────────────────────────────────
 jupyter==1.0.0
 ipykernel==6.29.5
+nbformat==5.10.4
 
-# Utilities
-pathlib2==2.3.7
+# ── Backend API ───────────────────────────────────────────────
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+
+# ── Utilities ────────────────────────────────────────────────
 tqdm==4.66.4
