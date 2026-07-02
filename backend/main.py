@@ -1,5 +1,6 @@
 """FastAPI backend for the Spotify Music Recommendation System."""
 import json
+import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -120,9 +121,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Spotify Recommender API", version="1.0.0", lifespan=lifespan)
 
+_raw_origins = os.environ.get("ALLOWED_ORIGINS", "")
+_extra = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        *_extra,
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
