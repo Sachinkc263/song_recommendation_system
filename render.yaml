@@ -9,3 +9,8 @@ services:
     envVars:
       - key: PYTHONUNBUFFERED
         value: "1"
+      # Set in the Render dashboard (Environment tab):
+      - key: ALLOWED_ORIGINS   # deployed frontend origin(s), comma-separated
+        sync: false
+      - key: HF_TOKEN          # Hugging Face read token — faster data downloads
+        sync: false

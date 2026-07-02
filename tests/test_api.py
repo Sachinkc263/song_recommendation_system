@@ -6,11 +6,21 @@ These tests require the backend to be running:
 
 Run only these tests:
     pytest tests/test_api.py -v -m integration
+
+Point them at the deployed backend instead:
+    API_BASE_URL=https://song-recommendation-system-4uib.onrender.com pytest tests/test_api.py -v -m integration
 """
+import sys
+from pathlib import Path
+
 import pytest
 import requests
 
-BASE = "http://localhost:8000"
+sys.path.insert(0, str(Path(__file__).parents[1]))
+
+from config.settings import API_BASE_URL
+
+BASE = API_BASE_URL
 
 
 @pytest.fixture(scope="session")
@@ -114,10 +124,15 @@ class TestGenres:
         for g in genres:
             assert "name" in g and "count" in g
 
-    def test_songs_by_genre(self, api_available):
-        r = requests.get(f"{BASE}/api/genre/pop", params={"limit": 5})
+    def test_songs_by_genre_paginated(self, api_available):
+        r = requests.get(f"{BASE}/api/genre/pop", params={"page": 1, "page_size": 5})
         assert r.status_code == 200
-        assert isinstance(r.json(), list)
+        data = r.json()
+        for key in ["items", "page", "page_size", "total_pages", "total_items"]:
+            assert key in data
+        assert isinstance(data["items"], list)
+        assert len(data["items"]) <= 5
+        assert data["page"] == 1
 
 
 @pytest.mark.integration
@@ -130,10 +145,15 @@ class TestMoods:
         assert "Happy" in names
         assert "Chill" in names
 
-    def test_songs_by_mood(self, api_available):
-        r = requests.get(f"{BASE}/api/mood/Happy", params={"limit": 5})
+    def test_songs_by_mood_paginated(self, api_available):
+        r = requests.get(f"{BASE}/api/mood/Happy", params={"page": 1, "page_size": 5})
         assert r.status_code == 200
-        assert isinstance(r.json(), list)
+        data = r.json()
+        for key in ["items", "page", "page_size", "total_pages", "total_items"]:
+            assert key in data
+        assert isinstance(data["items"], list)
+        assert len(data["items"]) <= 5
+        assert data["page"] == 1
 
 
 @pytest.mark.integration

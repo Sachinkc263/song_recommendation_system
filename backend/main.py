@@ -1,8 +1,9 @@
 """FastAPI backend for the Spotify Music Recommendation System."""
 import json
-import os
+import logging
 import sys
 from contextlib import asynccontextmanager
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Optional
 
@@ -15,9 +16,23 @@ from pydantic import BaseModel
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
+from config.settings import ALLOWED_ORIGINS, LOG_DIR, LOG_LEVEL
 from src.data.load import load_recommender_payload, load_data_genre
 from src.data.preprocess import build_genre_lookup, get_track_genres
 from src.models.recommender import ContentBasedRecommender
+
+# ─── Logging ─────────────────────────────────────────────────────────────────
+
+LOG_DIR.mkdir(exist_ok=True)
+logging.basicConfig(
+    level=LOG_LEVEL,
+    format="%(asctime)s  %(levelname)-7s %(name)s — %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        RotatingFileHandler(LOG_DIR / "backend.log", maxBytes=1_000_000, backupCount=3),
+    ],
+)
+logger = logging.getLogger("spotify-rec")
 
 _state: dict = {}
 
@@ -69,7 +84,7 @@ def classify_moods(row: pd.Series) -> list[str]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("Loading recommender model …")
+    logger.info("Loading recommender model …")
 
     payload = load_recommender_payload()
     feature_matrix = payload["feature_matrix"]
@@ -104,15 +119,16 @@ async def lifespan(app: FastAPI):
         track_data["id"] = track_data["id"].astype(str)
         track_data = track_data.merge(cover_df, on="id", how="left")
         found = track_data["cover_url"].notna().sum()
-        print(f"Artwork loaded — {found:,} / {len(track_data):,} tracks have cover URLs.")
+        logger.info("Artwork loaded — %s / %s tracks have cover URLs.",
+                    f"{found:,}", f"{len(track_data):,}")
     else:
         track_data["cover_url"] = None
-        print("No artwork file found. Run scripts/enrich_artwork.py to enrich the dataset.")
+        logger.warning("No artwork file found. Run scripts/enrich_artwork.py to enrich the dataset.")
 
     _state["recommender"] = ContentBasedRecommender(feature_matrix, track_index)
     _state["track_data"] = track_data
 
-    print(f"Ready — {len(track_data):,} tracks loaded.")
+    logger.info("Ready — %s tracks loaded.", f"{len(track_data):,}")
     yield
     _state.clear()
 
@@ -121,17 +137,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Spotify Recommender API", version="1.0.0", lifespan=lifespan)
 
-_raw_origins = os.environ.get("ALLOWED_ORIGINS", "")
-_extra = [o.strip() for o in _raw_origins.split(",") if o.strip()]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-        *_extra,
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -223,20 +231,18 @@ async def search(q: str, limit: int = 10):
     name_low = td["name"].str.lower()
     artist_low = td["artists"].str.lower()
 
-    mask_exact   = name_low == q_low
-    mask_starts  = name_low.str.startswith(q_low)
-    mask_name    = name_low.str.contains(q_low, na=False, regex=False)
-    mask_artist  = artist_low.str.contains(q_low, na=False, regex=False)
+    # Rank matches without copying the full 169k-row DataFrame (memory-critical
+    # on the 512MB free-tier instance).
+    score = np.zeros(len(td), dtype=np.int8)
+    score[artist_low.str.contains(q_low, na=False, regex=False).to_numpy()] = 1
+    score[name_low.str.contains(q_low, na=False, regex=False).to_numpy()]   = 2
+    score[name_low.str.startswith(q_low, na=False).to_numpy()]              = 3
+    score[(name_low == q_low).to_numpy()]                                   = 4
 
-    scored = td.copy()
-    scored["_s"] = 0
-    scored.loc[mask_artist, "_s"]  = 1
-    scored.loc[mask_name,   "_s"]  = 2
-    scored.loc[mask_starts, "_s"]  = 3
-    scored.loc[mask_exact,  "_s"]  = 4
-
-    filtered = (scored[scored["_s"] > 0]
-                .sort_values(["_s", "popularity"], ascending=[False, False]))
+    hit_pos = np.nonzero(score > 0)[0]
+    filtered = td.iloc[hit_pos].copy()
+    filtered["_s"] = score[hit_pos]
+    filtered = filtered.sort_values(["_s", "popularity"], ascending=[False, False])
 
     # Deduplicate by name — keep the most popular version of each song
     seen: set = set()
@@ -294,6 +300,10 @@ async def recommend(req: RecommendRequest):
     seed_matches = td[td["name"].str.lower() == req.name.lower()]
     if seed_matches.empty:
         seed_matches = td[td["name"].str.lower().str.contains(req.name.lower(), na=False, regex=False)]
+
+    # Unknown seed song → the recommender returns an empty DataFrame, not an error
+    if seed_matches.empty:
+        raise HTTPException(status_code=404, detail=f"Song '{req.name}' not found")
 
     seed_features: dict[str, float] = {}
     seed_data: dict = {}

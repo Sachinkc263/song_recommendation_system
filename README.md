@@ -9,6 +9,17 @@
 
 A full-stack music recommendation system built on the Spotify audio features dataset. The system uses **content-based filtering** — cosine similarity over a 14-dimensional normalised audio feature vector — to find musically similar songs. The frontend is a premium React application with a dark/light theme toggle inspired by modern music streaming platforms.
 
+## 🌐 Live Demo
+
+| | URL |
+|---|---|
+| **Website** | [song-recommendation-system-psi.vercel.app](https://song-recommendation-system-psi.vercel.app/) |
+| **API** | [song-recommendation-system-4uib.onrender.com/api/health](https://song-recommendation-system-4uib.onrender.com/api/health) |
+| **API docs** | [song-recommendation-system-4uib.onrender.com/docs](https://song-recommendation-system-4uib.onrender.com/docs) |
+| **Data files** | [huggingface.co/datasets/Sachin263/spotify-rec-data](https://huggingface.co/datasets/Sachin263/spotify-rec-data) |
+
+> The backend runs on Render's free tier and sleeps after 15 minutes of inactivity — the first request may take **30–60 seconds** while it wakes up.
+
 ---
 
 ## Table of Contents
@@ -26,6 +37,7 @@ A full-stack music recommendation system built on the Spotify audio features dat
   - [5. Enrich album artwork](#5-enrich-album-artwork-optional-but-recommended)
   - [6. Start the application](#6-start-the-application)
 - [Docker Setup](#docker-setup)
+- [Deployment (Free Hosting)](#deployment-free-hosting)
 - [Application Pages](#application-pages)
 - [API Reference](#api-reference)
 - [ML Model Details](#ml-model-details)
@@ -95,8 +107,13 @@ spotify_recommendation/
 ├── backend/                        # FastAPI REST API
 │   └── main.py                     # 11 endpoints — search, recommend, moods, genres, decades…
 │
+├── config/
+│   └── settings.py                 # Central settings — HF repo, CORS origins, log level
+│                                   #   (env vars / root .env override the defaults)
+│
 ├── frontend/                       # React 18 + Vite application
 │   ├── index.html                  # Anti-FOUC theme script (applies dark class before hydration)
+│   ├── vercel.json                 # SPA rewrite — client-side routes survive refresh
 │   ├── src/
 │   │   ├── api/                    # Axios client + typed service functions
 │   │   ├── components/
@@ -135,6 +152,7 @@ spotify_recommendation/
 │   └── 06_evaluation.ipynb
 │
 ├── scripts/
+│   ├── download_data.py            # Fetch runtime data files from Hugging Face Hub
 │   └── enrich_artwork.py           # One-time artwork enrichment — iTunes + Deezer APIs (75.5% coverage)
 │
 ├── data/
@@ -149,12 +167,14 @@ spotify_recommendation/
 ├── models/                         # Trained model artifacts (not committed — run notebook 05)
 │   └── recommender_payload.pkl     # feature_matrix + track_index + feature_columns
 │
+├── logs/                           # Backend log files (logs/backend.log — gitignored)
+│
 ├── reports/
 │   └── figures/                    # EDA and evaluation plots (committed)
 │
 ├── tests/
 │   ├── test_recommender.py         # Unit tests for src/ (no backend needed)
-│   └── test_api.py                 # Integration tests (backend must be running)
+│   └── test_api.py                 # Integration tests (local or deployed backend)
 │
 ├── docker/
 │   ├── Dockerfile.api              # FastAPI backend container
@@ -162,6 +182,9 @@ spotify_recommendation/
 │   ├── Dockerfile.jupyter          # Jupyter notebook development container
 │   └── nginx.conf                  # Nginx SPA + API proxy config
 │
+├── .env.example                    # Backend env vars — copy to .env for local overrides
+├── render.yaml                     # Render deploy config for the FastAPI backend
+├── pytest.ini                      # Registers the "integration" test marker
 ├── docker-compose.yml
 ├── Makefile                        # Convenience commands (make dev, make test, …)
 ├── requirements.txt
@@ -218,8 +241,8 @@ spotify_recommendation/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/<your-username>/spotify-recommendation.git
-cd spotify-recommendation
+git clone https://github.com/Sachinkc263/song_recommendation_system.git
+cd song_recommendation_system
 ```
 
 ### 2. Install dependencies
@@ -264,7 +287,15 @@ data/raw/
 
 ### 4. Run the data pipeline
 
-Run the notebooks **in order** to generate processed data and the trained model:
+> **Shortcut — skip the notebooks entirely:** all runtime data files are hosted on
+> [Hugging Face Hub](https://huggingface.co/datasets/Sachin263/spotify-rec-data).
+> Download them with one command and jump to step 6:
+>
+> ```bash
+> python scripts/download_data.py
+> ```
+
+Alternatively, run the notebooks **in order** to generate processed data and the trained model yourself:
 
 ```bash
 make notebooks
@@ -346,6 +377,30 @@ docker-compose --profile dev up jupyter
 
 ---
 
+## Deployment (Free Hosting)
+
+The live demo runs entirely on free tiers:
+
+```
+GitHub repo ──► Vercel   (frontend — auto-deploys on every push)
+            └─► Render   (backend — builds, downloads data, runs uvicorn)
+HF Hub      ──► Render   (data files fetched at build time)
+```
+
+| Piece | Service | Config |
+|---|---|---|
+| Frontend | [Vercel](https://vercel.com) | Root directory `frontend`, env var `VITE_API_URL` = backend URL. `frontend/vercel.json` rewrites all routes to `index.html` so React Router works on refresh. |
+| Backend | [Render](https://render.com) | `render.yaml` — build installs requirements + runs `scripts/download_data.py`, start runs uvicorn. Dashboard env vars: `ALLOWED_ORIGINS` (frontend URL), `HF_TOKEN` (optional). |
+| Data & model | [Hugging Face Hub](https://huggingface.co/datasets/Sachin263/spotify-rec-data) | Public dataset repo holding `recommender_payload.pkl`, `data_clean.csv`, `data_with_cover.csv`, `data_w_genres.csv` — these are gitignored, so the server downloads them at build time. |
+
+**Free-tier limitations to know about:**
+- Render spins the backend down after 15 minutes of no traffic → first request takes 30–60 s (the frontend's 60 s request timeout accounts for this).
+- The instance has 512 MB RAM — fine for normal browsing, but hammering the API with many rapid concurrent requests can restart it.
+
+**Redeploying after changes:** just `git push` — Vercel redeploys automatically; Render redeploys automatically too (or use *Manual Deploy → Deploy latest commit*).
+
+---
+
 ## Application Pages
 
 | Page | Route | Description |
@@ -365,7 +420,8 @@ docker-compose --profile dev up jupyter
 
 ## API Reference
 
-All endpoints are served at `http://localhost:8000`.
+All endpoints are served at `http://localhost:8000` locally, or at
+`https://song-recommendation-system-4uib.onrender.com` in production.
 
 | Method | Endpoint | Parameters | Description |
 |---|---|---|---|
@@ -499,6 +555,9 @@ pytest tests/test_recommender.py -v
 # Integration tests (backend must be running on port 8000)
 pytest tests/test_api.py -v -m integration
 
+# Integration tests against the deployed backend
+API_BASE_URL=https://song-recommendation-system-4uib.onrender.com pytest tests/test_api.py -v -m integration
+
 # All tests with coverage report
 make test-cov
 ```
@@ -556,4 +615,4 @@ Run `make lint` before submitting a PR if you modified Python files.
 
 ---
 
-*Built with Python, FastAPI, React, and scikit-learn by [Sachin KC](https://github.com/sachinkc1234)*
+*Built with Python, FastAPI, React, and scikit-learn by [Sachin KC](https://github.com/Sachinkc263)*

@@ -1,8 +1,18 @@
-"""Download processed data from Hugging Face Hub if not already present."""
+"""Download runtime data files from Hugging Face Hub if not already present.
+
+Used by the Render build step (see render.yaml) and for a quick local setup
+without running the notebooks. The repo ID comes from config/settings.py and
+can be overridden with the HF_DATASET_REPO env var.
+"""
+import sys
 from pathlib import Path
+
 from huggingface_hub import hf_hub_download
 
-REPO = "Sachin263/spotify-rec-data"
+ROOT = Path(__file__).parents[1]
+sys.path.insert(0, str(ROOT))
+
+from config.settings import HF_DATASET_REPO
 
 # local_path -> filename on HF Hub
 files = {
@@ -13,17 +23,16 @@ files = {
 }
 
 for local_path, repo_filename in files.items():
-    dest = Path(local_path)
+    dest = ROOT / local_path
     if not dest.exists():
-        print(f"Downloading {repo_filename}…")
+        print(f"Downloading {repo_filename} from {HF_DATASET_REPO}...")
         dest.parent.mkdir(parents=True, exist_ok=True)
         hf_hub_download(
-            repo_id=REPO,
+            repo_id=HF_DATASET_REPO,
             filename=repo_filename,
             repo_type="dataset",
             local_dir=str(dest.parent),
-            local_dir_use_symlinks=False,
         )
-        print(f"  → saved to {dest}")
+        print(f"  -> saved to {dest.relative_to(ROOT)}")
     else:
-        print(f"  ✓ {dest} already present")
+        print(f"  OK {dest.relative_to(ROOT)} already present")
