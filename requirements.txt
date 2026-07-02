@@ -21,3 +21,6 @@ tqdm==4.66.4
 
 # ── Artwork enrichment script (scripts/enrich_artwork.py only) ───────────────
 aiohttp==3.9.5
+
+# ── Hugging Face Hub (used in scripts/download_data.py) ───────────────
+huggingface_hub>=0.23
