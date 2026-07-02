@@ -2,7 +2,7 @@
 from pathlib import Path
 from huggingface_hub import hf_hub_download
 
-REPO = "your-username/spotify-rec-data"   # change this
+REPO = "Sachin263/spotify-rec-data" 
 
 files = {
     "data/processed/data_clean.csv":      "data_clean.csv",
