@@ -8,22 +8,25 @@ import FeatureBar from "../components/cards/FeatureBar";
 import MoodBadge from "../components/cards/MoodBadge";
 import LoadingSpinner from "../components/common/LoadingSpinner";
 import ErrorState from "../components/common/ErrorState";
+import ArtworkImage from "../components/common/ArtworkImage";
 import useStore from "../store/useStore";
-import { formatArtists, getArtGradient, formatDuration } from "../utils/format";
+import { formatArtists } from "../utils/format";
 
 const FEATURES = [
-  { key: "energy",          label: "Energy",          color: "#FF5722", desc: "Intensity & power" },
-  { key: "danceability",    label: "Danceability",    color: "#1DB954", desc: "How suitable for dancing" },
-  { key: "valence",         label: "Mood (Valence)",  color: "#FFD700", desc: "Musical positivity" },
-  { key: "acousticness",    label: "Acousticness",    color: "#42A5F5", desc: "Acoustic vs. electronic" },
-  { key: "instrumentalness",label: "Instrumentalness",color: "#AB47BC", desc: "Vocal vs. instrumental" },
-  { key: "speechiness",     label: "Speechiness",     color: "#FFA726", desc: "Spoken word content" },
-  { key: "liveness",        label: "Liveness",        color: "#EC407A", desc: "Live recording feel" },
+  { key: "energy",           label: "Energy",           color: "#FF5722", desc: "Intensity and power" },
+  { key: "danceability",     label: "Danceability",     color: "#1DB954", desc: "Suitable for dancing" },
+  { key: "valence",          label: "Mood (Valence)",   color: "#FFD700", desc: "Musical positivity" },
+  { key: "acousticness",     label: "Acousticness",     color: "#42A5F5", desc: "Acoustic vs electronic" },
+  { key: "instrumentalness", label: "Instrumentalness", color: "#AB47BC", desc: "Vocal vs instrumental" },
+  { key: "speechiness",      label: "Speechiness",      color: "#FFA726", desc: "Spoken word content" },
+  { key: "liveness",         label: "Liveness",         color: "#EC407A", desc: "Live recording feel" },
 ];
+
+const NOTE_NAMES = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"];
 
 export default function SongDetail() {
   const { name } = useParams();
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
   const { addFavorite, removeFavorite, isFavorite, addToHistory } = useStore();
   const decoded = decodeURIComponent(name);
   const fav = isFavorite(decoded);
@@ -40,64 +43,86 @@ export default function SongDetail() {
     else { addFavorite(song); toast.success("Added to favorites!"); }
   };
 
-  if (isLoading) return <div className="p-6"><LoadingSpinner text="Loading song…" /></div>;
-  if (isError || !song) return <div className="p-6"><ErrorState onRetry={refetch} /></div>;
+  if (isLoading) return <div className="p-8"><LoadingSpinner text="Loading song…" /></div>;
+  if (isError || !song) return <div className="p-8"><ErrorState onRetry={refetch} /></div>;
 
-  const gradient = getArtGradient(song.name);
-  const moodSummary = (song.moods || []).slice(0, 3).join(" • ");
+  const moodList = (song.moods || []).slice(0, 4);
+  const features  = FEATURES.filter((f) => song[f.key] != null);
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-4xl mx-auto pb-12">
+
+      {/* Back */}
       <button
         onClick={() => navigate(-1)}
-        className="flex items-center gap-2 text-[#B3B3B3] hover:text-white transition-colors mb-6 text-sm"
+        className="flex items-center gap-1.5 text-th-secondary hover:text-th-text transition-colors mb-7 text-[14px] group"
       >
-        <BsArrowLeft /> Back
+        <BsArrowLeft className="group-hover:-translate-x-0.5 transition-transform" />
+        <span>Back</span>
       </button>
 
       {/* Header */}
       <motion.div
-        initial={{ opacity: 0, y: -12 }}
+        initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex gap-8 mb-10"
+        transition={{ duration: 0.3 }}
+        className="flex gap-7 mb-8"
       >
-        {/* Art */}
-        <div className={"w-48 h-48 rounded-2xl bg-gradient-to-br " + gradient + " flex items-center justify-center flex-shrink-0 shadow-2xl"}>
-          <span className="text-7xl font-bold text-white/70">{song.name?.[0]?.toUpperCase()}</span>
+        {/* Artwork */}
+        <div className="flex-shrink-0 w-44 h-44">
+          <ArtworkImage
+            coverUrl={song.cover_url}
+            name={song.name}
+            className="w-full h-full rounded-2xl"
+            style={{ boxShadow: "var(--th-shadow-card-hover)" }}
+            iconSize="text-5xl"
+          />
         </div>
 
         {/* Info */}
         <div className="flex-1 min-w-0 flex flex-col justify-end">
-          <p className="text-xs text-[#B3B3B3] uppercase tracking-wider mb-2">Song</p>
-          <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 leading-tight">{song.name}</h1>
-          <p className="text-lg text-[#B3B3B3] mb-3">{formatArtists(song.artists)}</p>
+          <p className="text-[11px] text-th-muted uppercase tracking-[0.16em] mb-2 font-semibold">Song</p>
+          <h1 className="text-[32px] md:text-[38px] font-bold text-th-text mb-1.5 leading-[1.15] tracking-tight">
+            {song.name}
+          </h1>
+          <p className="text-th-secondary text-[16px] mb-3">{formatArtists(song.artists)}</p>
 
-          <div className="flex items-center gap-3 flex-wrap mb-4">
-            <span className="text-[#B3B3B3] text-sm">{song.year}</span>
+          <div className="flex items-center gap-3 flex-wrap mb-4 text-th-secondary text-[14px]">
+            <span>{song.year}</span>
             {song.explicit && (
-              <span className="text-xs bg-[#B3B3B3] text-black font-bold px-1.5 py-0.5 rounded">E</span>
+              <span className="text-[10px] bg-th-muted text-th-bg font-bold px-1.5 py-0.5 rounded tracking-wider">E</span>
             )}
-            {song.duration_str && <span className="text-[#B3B3B3] text-sm">{song.duration_str}</span>}
-            <span className="text-sm font-semibold text-[#1DB954]">♥ {song.popularity}</span>
+            {song.duration_str && <span>{song.duration_str}</span>}
+            <span className="text-accent font-semibold">♥ {song.popularity}</span>
+            {song.primary_genre && (
+              <span className="bg-th-elevated border border-th-border px-2.5 py-0.5 rounded-full">
+                {song.primary_genre}
+              </span>
+            )}
           </div>
 
-          {/* Mood tags */}
-          <div className="flex items-center gap-2 flex-wrap mb-4">
-            {(song.moods || []).slice(0, 4).map((m) => <MoodBadge key={m} mood={m} size="sm" />)}
-          </div>
+          {moodList.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap mb-5">
+              {moodList.map((m) => <MoodBadge key={m} mood={m} size="sm" />)}
+            </div>
+          )}
 
-          {/* Actions */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <button
               onClick={() => navigate(`/recommendations/${encodeURIComponent(song.name)}`)}
-              className="flex items-center gap-2 bg-[#1DB954] text-black font-bold px-6 py-3 rounded-full hover:bg-[#1ed760] hover:scale-105 transition-all text-sm"
+              className="flex items-center gap-2 bg-accent text-black font-bold px-5 py-2.5 rounded-full hover:bg-accent-bright hover:scale-105 transition-all text-[14px] shadow-accent-sm"
             >
               <BsPlayFill /> Find Similar Songs
             </button>
             <button
               onClick={handleFav}
-              className={"w-10 h-10 rounded-full border-2 flex items-center justify-center transition-colors " +
-                (fav ? "border-[#1DB954] text-[#1DB954]" : "border-white/30 text-white/60 hover:border-white hover:text-white")}
+              aria-label={fav ? "Remove from favorites" : "Add to favorites"}
+              className={
+                "w-11 h-11 rounded-full border-2 flex items-center justify-center transition-all " +
+                (fav
+                  ? "border-accent text-accent bg-accent/10 shadow-[0_0_16px_rgba(29,185,84,0.2)]"
+                  : "border-th-border text-th-secondary hover:border-th-text hover:text-th-text")
+              }
             >
               {fav ? <BsHeartFill /> : <BsHeart />}
             </button>
@@ -105,67 +130,73 @@ export default function SongDetail() {
         </div>
       </motion.div>
 
-      {/* Mood summary */}
-      {moodSummary && (
-        <div className="bg-[#181818] rounded-xl p-4 mb-6">
-          <p className="text-xs text-[#B3B3B3] uppercase tracking-wider mb-1">Mood</p>
-          <p className="text-white font-semibold">{moodSummary}</p>
-        </div>
-      )}
-
-      {/* Genres */}
-      {song.genres && song.genres.length > 0 && (
-        <div className="mb-6">
-          <p className="text-xs text-[#B3B3B3] uppercase tracking-wider mb-2">Genres</p>
-          <div className="flex gap-2 flex-wrap">
-            {song.genres.map((g) => (
-              <button
-                key={g}
-                onClick={() => navigate(`/genre/${encodeURIComponent(g)}`)}
-                className="text-sm bg-[#282828] text-white px-4 py-1.5 rounded-full hover:bg-[#333] transition-colors"
-              >
-                {g}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Audio features */}
-      <div className="bg-[#181818] rounded-xl p-6">
-        <h2 className="text-lg font-bold text-white mb-5">Audio Features</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-          {FEATURES.filter((f) => song[f.key] != null).map((f) => (
-            <div key={f.key}>
-              <FeatureBar label={f.label} value={song[f.key]} color={f.color} />
-              <p className="text-xs text-[#B3B3B3] mt-0.5 ml-28">{f.desc}</p>
+      <div className="space-y-4">
+        {/* Genre tags */}
+        {song.genres && song.genres.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-th-surface border border-th-border rounded-xl p-5"
+          >
+            <p className="text-[12px] text-th-muted uppercase tracking-[0.12em] mb-3 font-semibold">Genres</p>
+            <div className="flex gap-2 flex-wrap">
+              {song.genres.map((g) => (
+                <button
+                  key={g}
+                  onClick={() => navigate(`/genre/${encodeURIComponent(g)}`)}
+                  className="text-[13px] bg-th-elevated text-th-secondary hover:text-th-text hover:bg-th-hover px-3.5 py-1.5 rounded-full transition-all border border-th-border font-medium"
+                >
+                  {g}
+                </button>
+              ))}
             </div>
-          ))}
-        </div>
+          </motion.div>
+        )}
 
-        {song.tempo != null && (
-          <div className="mt-4 pt-4 border-t border-white/5 flex gap-6 flex-wrap">
-            <div>
-              <p className="text-xs text-[#B3B3B3]">Tempo</p>
-              <p className="text-white font-semibold">{Math.round(song.tempo)} BPM</p>
+        {/* Audio features */}
+        {features.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="bg-th-surface border border-th-border rounded-xl p-5"
+          >
+            <h2 className="text-[17px] font-bold text-th-text mb-5 tracking-tight">Audio Features</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-4">
+              {features.map((f) => (
+                <div key={f.key}>
+                  <FeatureBar label={f.label} value={song[f.key]} color={f.color} showValue />
+                  <p className="text-[11px] text-th-muted mt-1 ml-[120px]">{f.desc}</p>
+                </div>
+              ))}
             </div>
-            {song.key != null && (
-              <div>
-                <p className="text-xs text-[#B3B3B3]">Key</p>
-                <p className="text-white font-semibold">
-                  {["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"][song.key]}{song.mode === 1 ? " Major" : " Minor"}
-                </p>
+
+            {(song.tempo != null || song.key != null || song.loudness != null) && (
+              <div className="mt-6 pt-5 border-t border-th-border flex gap-8 flex-wrap">
+                {song.tempo != null && <StatItem label="Tempo" value={Math.round(song.tempo)} unit="BPM" />}
+                {song.key != null && (
+                  <StatItem label="Key" value={NOTE_NAMES[song.key]} unit={song.mode === 1 ? "Major" : "Minor"} />
+                )}
+                {song.loudness != null && <StatItem label="Loudness" value={song.loudness?.toFixed(1)} unit="dB" />}
+                {song.duration_min != null && <StatItem label="Duration" value={song.duration_str} unit="min" />}
               </div>
             )}
-            {song.loudness != null && (
-              <div>
-                <p className="text-xs text-[#B3B3B3]">Loudness</p>
-                <p className="text-white font-semibold">{song.loudness?.toFixed(1)} dB</p>
-              </div>
-            )}
-          </div>
+          </motion.div>
         )}
       </div>
+    </div>
+  );
+}
+
+function StatItem({ label, value, unit }) {
+  return (
+    <div>
+      <p className="text-[11px] text-th-muted uppercase tracking-[0.12em] mb-1 font-semibold">{label}</p>
+      <p className="text-th-text font-bold text-[20px] leading-none">
+        {value}{" "}
+        <span className="text-[14px] font-normal text-th-secondary">{unit}</span>
+      </p>
     </div>
   );
 }

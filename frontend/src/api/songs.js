@@ -15,17 +15,22 @@ export const getRecommendations = (params) =>
 export const getGenres = (limit = 30) =>
   client.get("/api/genres", { params: { limit } }).then((r) => r.data);
 
-export const getSongsByGenre = (genre, limit = 24) =>
-  client.get(`/api/genre/${encodeURIComponent(genre)}`, { params: { limit } }).then((r) => r.data);
+export const getSongsByGenre = (genre, page = 1, pageSize = 12) =>
+  client
+    .get(`/api/genre/${encodeURIComponent(genre)}`, { params: { page, page_size: pageSize } })
+    .then((r) => r.data);
 
 export const getMoods = () =>
   client.get("/api/moods").then((r) => r.data);
 
-export const getSongsByMood = (mood, limit = 24) =>
-  client.get(`/api/mood/${encodeURIComponent(mood)}`, { params: { limit } }).then((r) => r.data);
-
-export const getAnalytics = () =>
-  client.get("/api/analytics").then((r) => r.data);
+/**
+ * Paginated mood songs.
+ * Returns { items, page, page_size, total_pages, total_items }
+ */
+export const getSongsByMood = (mood, page = 1, pageSize = 12) =>
+  client
+    .get(`/api/mood/${encodeURIComponent(mood)}`, { params: { page, page_size: pageSize } })
+    .then((r) => r.data);
 
 export const getSongsByDecade = (decade, limit = 24) =>
   client.get(`/api/decade/${decade}`, { params: { limit } }).then((r) => r.data);

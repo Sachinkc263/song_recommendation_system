@@ -6,9 +6,8 @@
 ![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=flat&logo=vite&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3-06B6D4?style=flat&logo=tailwindcss&logoColor=white)
 ![scikit-learn](https://img.shields.io/badge/scikit--learn-1.5-F7931E?style=flat&logo=scikitlearn&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-1DB954?style=flat)
 
-A full-stack music recommendation system built on the Spotify audio features dataset. The system uses **content-based filtering** — cosine similarity over a 14-dimensional normalised audio feature vector — to find musically similar songs. The frontend is a premium dark-themed React application inspired by modern music streaming platforms.
+A full-stack music recommendation system built on the Spotify audio features dataset. The system uses **content-based filtering** — cosine similarity over a 14-dimensional normalised audio feature vector — to find musically similar songs. The frontend is a premium React application with a dark/light theme toggle inspired by modern music streaming platforms.
 
 ---
 
@@ -24,7 +23,8 @@ A full-stack music recommendation system built on the Spotify audio features dat
   - [2. Install dependencies](#2-install-dependencies)
   - [3. Download the dataset](#3-download-the-dataset)
   - [4. Run the data pipeline](#4-run-the-data-pipeline)
-  - [5. Start the application](#5-start-the-application)
+  - [5. Enrich album artwork](#5-enrich-album-artwork-optional-but-recommended)
+  - [6. Start the application](#6-start-the-application)
 - [Docker Setup](#docker-setup)
 - [Application Pages](#application-pages)
 - [API Reference](#api-reference)
@@ -32,29 +32,39 @@ A full-stack music recommendation system built on the Spotify audio features dat
 - [Evaluation Results](#evaluation-results)
 - [Development](#development)
 - [Contributing](#contributing)
-- [License](#license)
 
 ---
 
 ## Features
 
 **Music Discovery**
-- Search 170,000+ songs by title or artist with real-time debounced autocomplete
+- Search 170,000+ songs by title or artist with real-time debounced autocomplete (350 ms)
+- Paginated search results — 48 deduplicated results split into 12-per-page with URL-based state (`?q=…&page=2`) so the browser back button returns you to the same page
 - Content-based recommendations with per-song similarity scores (0–100%)
 - Collapsible recommendation explanations showing which audio features matched
 
 **Mood & Genre Exploration**
-- 14 auto-classified mood categories (Happy, Chill, Workout, Focus, …) inferred from audio features — no external labels needed
-- Genre browser with top songs per genre
-- Decade browser (1920s–2020s)
+- 13 auto-classified mood categories (Happy, Sad, Party, Workout, Chill, Relax, Sleep, Focus, Study, Driving, Romantic, Meditation, Energetic) inferred from audio features — no external labels needed
+- Mood Explorer with paginated song lists (12 per page, URL-based page state)
+- Genre browser with paginated top songs per genre (server-side pagination)
+
+**Album Artwork**
+- 127,653 / 169,040 tracks enriched with real album cover art (75.5% coverage)
+- Artwork sourced from iTunes Search API + Deezer API via `scripts/enrich_artwork.py`
+- Lazy-loaded with smooth fade-in and gradient placeholder fallback — no broken images ever
+- Shared `ArtworkImage` component used consistently across all cards and panels
 
 **Personalisation (client-side)**
 - Favorites list — heart any song, persisted in `localStorage`
-- Browsing and search history timeline
-- "Songs For You" section on the home page adapts to your recent listening
+- Browsing and search history timeline with artwork
+- "Songs For You" home section adapts to your recent listening; "See All" navigates to the full paginated `/for-you` page
+- Sort and filter favorites by name, popularity, or release year
 
-**Analytics Dashboard**
-- 6 Recharts visualisations: genre distribution, mood pie chart, decade bar chart, audio feature radar, popularity histogram, top artists
+**UI / Theme**
+- Dark / Light theme toggle in the top navigation bar, **default: Dark Mode**
+- Preference persisted to `localStorage`; applied before React hydrates to prevent flash of wrong theme
+- CSS custom properties drive all theme-aware colours — single class switch on `<html>` updates the entire app
+- Inter font, Framer Motion animations, WCAG AA contrast in both themes
 
 ---
 
@@ -83,21 +93,25 @@ FastAPI backend  ──►  ContentBasedRecommender
 spotify_recommendation/
 │
 ├── backend/                        # FastAPI REST API
-│   └── main.py                     # 13 endpoints — search, recommend, moods, analytics…
+│   └── main.py                     # 11 endpoints — search, recommend, moods, genres, decades…
 │
 ├── frontend/                       # React 18 + Vite application
+│   ├── index.html                  # Anti-FOUC theme script (applies dark class before hydration)
 │   ├── src/
 │   │   ├── api/                    # Axios client + typed service functions
 │   │   ├── components/
 │   │   │   ├── cards/              # SongCard, RecCard, FeatureBar, MoodBadge
-│   │   │   ├── common/             # SkeletonCard, EmptyState, LoadingSpinner, ErrorState
-│   │   │   └── layout/             # Sidebar, TopNav
+│   │   │   ├── common/             # ArtworkImage, Pagination, SkeletonCard,
+│   │   │   │                       #   EmptyState, ErrorState, LoadingSpinner
+│   │   │   └── layout/             # Sidebar, TopNav (with theme toggle)
+│   │   ├── contexts/
+│   │   │   └── ThemeContext.jsx    # Light/Dark theme context — persisted to localStorage
 │   │   ├── hooks/                  # useDebounce
 │   │   ├── layouts/                # MainLayout (sidebar + topnav wrapper)
-│   │   ├── pages/                  # 10 pages (Home, Search, SongDetail, …)
+│   │   ├── pages/                  # 10 pages (see Application Pages)
 │   │   ├── store/                  # Zustand store — favorites, history (localStorage)
-│   │   └── utils/                  # mood.js (14 moods config), format.js (helpers)
-│   ├── .env.example
+│   │   └── utils/                  # mood.js (13 moods config), format.js (helpers)
+│   ├── tailwind.config.js          # darkMode: "class" + semantic theme colour tokens
 │   ├── package.json
 │   └── vite.config.js
 │
@@ -120,9 +134,17 @@ spotify_recommendation/
 │   ├── 05_content_based_recommender.ipynb
 │   └── 06_evaluation.ipynb
 │
+├── scripts/
+│   └── enrich_artwork.py           # One-time artwork enrichment — iTunes + Deezer APIs (75.5% coverage)
+│
 ├── data/
 │   ├── raw/                        # Original Kaggle CSVs (not committed — download separately)
-│   └── processed/                  # Generated by notebooks (not committed — run pipeline first)
+│   └── processed/                  # Generated by notebooks and scripts (not committed)
+│       ├── data_clean.csv          # Cleaned tracks (generated by notebook 03)
+│       ├── feature_matrix.csv      # 14-dim normalised feature matrix (notebook 04)
+│       ├── track_index.csv         # name / artist / year / popularity index (notebook 05)
+│       ├── data_with_cover.csv     # cover_url per track ID (run scripts/enrich_artwork.py)
+│       └── feature_columns.json    # Feature column names (committed — small config file)
 │
 ├── models/                         # Trained model artifacts (not committed — run notebook 05)
 │   └── recommender_payload.pkl     # feature_matrix + track_index + feature_columns
@@ -143,8 +165,7 @@ spotify_recommendation/
 ├── docker-compose.yml
 ├── Makefile                        # Convenience commands (make dev, make test, …)
 ├── requirements.txt
-├── requirements-dev.txt
-└── LICENSE
+└── requirements-dev.txt
 ```
 
 ---
@@ -165,15 +186,15 @@ spotify_recommendation/
 |---|---|
 | React 18 | UI framework |
 | Vite 5 | Build tool and dev server |
-| Tailwind CSS 3 | Utility-first styling (dark theme) |
-| React Router v6 | Client-side routing |
-| TanStack React Query | Server state management + caching |
+| Tailwind CSS 3 | Utility-first styling (`darkMode: "class"` + CSS custom properties) |
+| React Router v6 | Client-side routing with URL-based pagination state |
+| TanStack React Query v5 | Server state management + caching + next-page prefetch |
 | Zustand | Client state (favorites, history) — persisted via localStorage |
 | Framer Motion | Page and card animations |
-| Recharts | Analytics charts |
 | React Icons | Icon library |
 | React Hot Toast | Toast notifications |
 | Axios | HTTP client |
+| Inter (Google Fonts) | UI typeface |
 
 ### Data & ML
 | Tool | Purpose |
@@ -237,7 +258,9 @@ data/raw/
 └── song_and_artists.csv     # Curated song list
 ```
 
-> The raw data files are not committed to this repository because they are large (up to 28 MB each). They must be downloaded from Kaggle.
+> Download all datasets from Kaggle: **[Spotify Music Recommendation System — All Datasets](https://www.kaggle.com/models/dhruvdhayal/spotify-music-recommendation-system?select=All+Datasets)**
+>
+> The raw data files are not committed to this repository (up to 28 MB each).
 
 ### 4. Run the data pipeline
 
@@ -256,7 +279,24 @@ This generates:
 
 > **Estimated time:** ~5–10 minutes for all notebooks on a modern laptop.
 
-### 5. Start the application
+### 5. Enrich album artwork (optional but recommended)
+
+Fetch real album cover art for all 170k tracks from iTunes and Deezer:
+
+```bash
+pip install aiohttp          # one-time install
+python scripts/enrich_artwork.py
+```
+
+This saves `data/processed/data_with_cover.csv` (~13 MB). The backend loads it automatically on next start.
+
+- **Coverage:** 127,653 / 169,040 tracks (75.5%)
+- **Runtime:** ~5 hours (resume-safe — interrupted runs pick up where they left off)
+- **Quick test:** `python scripts/enrich_artwork.py --limit 500` (~2 minutes)
+
+> If you skip this step, songs display a coloured gradient placeholder instead of the real cover art.
+
+### 6. Start the application
 
 **Option A — two terminals:**
 
@@ -310,16 +350,16 @@ docker-compose --profile dev up jupyter
 
 | Page | Route | Description |
 |---|---|---|
-| **Home** | `/` | Hero search bar, trending songs, 14 mood shortcuts, genre cards, personalised "Songs For You" section |
-| **Search** | `/search?q=…` | Real-time debounced search (350 ms) across 170k+ songs by name or artist |
-| **Song Detail** | `/song/:name` | Audio feature progress bars (7 features), mood tags, key / tempo / loudness metadata, "Find Similar Songs" CTA |
-| **Recommendations** | `/recommendations/:name` | Up to 20 similar songs with similarity %, collapsible per-song explanations listing which audio features matched |
-| **Mood Explorer** | `/mood/:mood` | Split-view sidebar with 14 moods + song grid; moods are auto-inferred from audio features |
-| **Genre Songs** | `/genre/:genre` | Top songs in any genre, sorted by popularity |
-| **Analytics** | `/analytics` | 6 Recharts charts: genre bar, mood pie, decade bar, audio radar, popularity histogram, top artists |
-| **Favorites** | `/favorites` | Saved songs with sort (name / popularity / year) and filter; persisted to `localStorage` |
+| **Home** | `/` | Hero section, Songs For You, Trending Now, Browse Genres |
+| **Songs For You** | `/for-you` | Paginated personal feed — history-based if available, popular picks otherwise |
+| **Search** | `/search?q=…` | Real-time debounced search across 170k+ songs; 48 results paginated 12/page with URL state |
+| **Song Detail** | `/song/:name` | Audio feature bars (7 features), mood tags, key/tempo/loudness stats, "Find Similar Songs" |
+| **Recommendations** | `/recommendations/:name` | Up to 20 similar songs with similarity %, year/artist filters, collapsible per-song explanations |
+| **Mood Explorer** | `/mood/:mood` | Split-view sidebar with 13 moods + paginated song grid (URL page state, prefetch) |
+| **Genre Songs** | `/genre/:genre` | Top songs in any genre, paginated 12/page, server-side with URL page state |
+| **Favorites** | `/favorites` | Saved songs with in-page search filter and sort (name / popularity / year) |
 | **History** | `/history` | Browsing and search history timeline; clearable |
-| **Settings** | `/settings` | Model info, data management (clear history / favorites) |
+| **Settings** | `/settings` | Model info, artwork coverage stats, data management (clear history/favorites) |
 
 ---
 
@@ -330,16 +370,15 @@ All endpoints are served at `http://localhost:8000`.
 | Method | Endpoint | Parameters | Description |
 |---|---|---|---|
 | `GET` | `/api/health` | — | Health check |
-| `GET` | `/api/search` | `q`, `limit=10` | Search by song name or artist |
-| `GET` | `/api/popular` | `limit=24` | Top songs by popularity |
+| `GET` | `/api/search` | `q`, `limit=10` | Search by song name or artist (deduped by name, highest popularity kept) |
+| `GET` | `/api/popular` | `limit=24` | Top songs by popularity score |
 | `GET` | `/api/song/{name}` | — | Full song details with audio features |
-| `POST` | `/api/recommend` | body → see below | Get similar songs |
+| `POST` | `/api/recommend` | body → see below | Get similar songs via cosine similarity |
 | `GET` | `/api/genres` | `limit=30` | Genre list with song counts |
-| `GET` | `/api/genre/{name}` | `limit=24` | Songs in a specific genre |
-| `GET` | `/api/moods` | — | All 14 mood categories with counts |
-| `GET` | `/api/mood/{mood}` | `limit=24` | Songs classified into a mood |
+| `GET` | `/api/genre/{name}` | `page=1`, `page_size=12` | Paginated songs in a specific genre |
+| `GET` | `/api/moods` | — | All mood categories with counts |
+| `GET` | `/api/mood/{mood}` | `page=1`, `page_size=12` | Paginated songs classified into a mood |
 | `GET` | `/api/decade/{year}` | `limit=24` | Songs from a decade (e.g. `1990`) |
-| `GET` | `/api/analytics` | — | Aggregated data for all charts |
 
 **POST /api/recommend — request body**
 
@@ -353,11 +392,23 @@ All endpoints are served at `http://localhost:8000`.
 }
 ```
 
-**Response** includes each recommendation with:
-- `similarity` — cosine similarity to seed (0–1)
-- `explanation.reasons` — top 5 matching features with per-feature match scores
+**Paginated response shape** (genre and mood endpoints):
 
-Full interactive API documentation is available at **http://localhost:8000/docs**.
+```json
+{
+  "items": [ /* array of song objects */ ],
+  "page": 1,
+  "page_size": 12,
+  "total_pages": 42,
+  "total_items": 503
+}
+```
+
+**Recommendation response** includes each song with:
+- `similarity` — cosine similarity to seed (0–1)
+- `explanation.reasons` — top matching features with per-feature match scores
+
+Full interactive API documentation: **http://localhost:8000/docs**
 
 ---
 
@@ -391,16 +442,17 @@ Mood categories are **auto-inferred at API startup** from raw audio features —
 | Mood | Key rules |
 |---|---|
 | Happy | valence > 0.65 AND energy > 0.65 |
+| Sad | valence < 0.35 AND energy < 0.45 |
 | Party | energy > 0.75 AND danceability > 0.70 |
 | Workout | energy > 0.70 AND tempo > 125 BPM |
 | Chill | energy < 0.50 AND valence > 0.40 AND acousticness > 0.40 |
+| Relax | energy < 0.45 AND acousticness > 0.55 |
+| Sleep | energy < 0.35 AND instrumentalness > 0.40 |
 | Focus | instrumentalness > 0.60 AND energy < 0.50 |
 | Study | instrumentalness > 0.40 AND speechiness < 0.12 |
-| Sleep | energy < 0.35 AND instrumentalness > 0.40 |
-| Sad | valence < 0.35 AND energy < 0.45 |
+| Driving | energy > 0.60 AND tempo > 100 AND danceability > 0.55 |
 | Romantic | valence > 0.55 AND energy < 0.65 AND danceability > 0.50 |
 | Meditation | instrumentalness > 0.70 AND energy < 0.35 |
-| Driving | energy > 0.60 AND tempo > 100 AND danceability > 0.55 |
 | Energetic | energy > 0.80 |
 
 ---
@@ -454,15 +506,23 @@ make test-cov
 ### Lint and format
 
 ```bash
-make lint      # flake8 + black --check
-make format    # black + isort (auto-fix)
+make lint      # flake8 + black --check  (Python only)
+make format    # black + isort auto-fix  (Python only)
 ```
+
+These commands apply to the **Python** source only (`src/`, `backend/`, `tests/`):
+
+- `flake8` checks for style violations (unused imports, line length > 100, etc.)
+- `black --check` verifies code is formatted consistently without modifying files
+- `make format` auto-applies `black` formatting and `isort` import ordering
+
+> The React frontend has no ESLint or Prettier configured — `make lint` will not touch any `.jsx`/`.js` files. If you add frontend linting later, extend the Makefile with `cd frontend && npm run lint`.
 
 ### Frontend development
 
 ```bash
 cd frontend
-npm run dev      # start dev server with HMR
+npm run dev      # start dev server with HMR at http://localhost:5173
 npm run build    # production build → frontend/dist/
 npm run preview  # preview the production build locally
 ```
@@ -480,7 +540,7 @@ npm run preview  # preview the production build locally
 | `data_by_year.csv` | 100 | 0.02 MB | Mean audio features per year |
 | `song_and_artists.csv` | 2,420 | 0.2 MB | Curated song list with user ratings |
 
-Download from: [Spotify Music Recommendation System — Kaggle](https://www.kaggle.com/)
+Download from: [Spotify Music Recommendation System — All Datasets](https://www.kaggle.com/models/dhruvdhayal/spotify-music-recommendation-system?select=All+Datasets)
 
 ---
 
@@ -492,13 +552,7 @@ Download from: [Spotify Music Recommendation System — Kaggle](https://www.kagg
 4. Push to the branch: `git push origin feature/my-feature`
 5. Open a pull request
 
-Please run `make lint` and `make test` before submitting a PR.
-
----
-
-## License
-
-This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
+Run `make lint` before submitting a PR if you modified Python files.
 
 ---
 

@@ -95,6 +95,19 @@ async def lifespan(app: FastAPI):
         lambda m: m[0] if m else "Feel Good"
     )
 
+    # Merge pre-fetched artwork URLs if the enrichment file exists
+    cover_path = ROOT / "data/processed/data_with_cover.csv"
+    if cover_path.exists():
+        cover_df = pd.read_csv(cover_path, usecols=["id", "cover_url"], dtype={"id": str})
+        cover_df = cover_df.drop_duplicates("id", keep="first")
+        track_data["id"] = track_data["id"].astype(str)
+        track_data = track_data.merge(cover_df, on="id", how="left")
+        found = track_data["cover_url"].notna().sum()
+        print(f"Artwork loaded — {found:,} / {len(track_data):,} tracks have cover URLs.")
+    else:
+        track_data["cover_url"] = None
+        print("No artwork file found. Run scripts/enrich_artwork.py to enrich the dataset.")
+
     _state["recommender"] = ContentBasedRecommender(feature_matrix, track_index)
     _state["track_data"] = track_data
 
@@ -132,6 +145,9 @@ def format_song(row: pd.Series) -> dict:
     if not isinstance(genres, list):
         genres = []
 
+    cover_raw = row.get("cover_url")
+    cover_url = str(cover_raw) if (cover_raw is not None and pd.notna(cover_raw)) else None
+
     result: dict = {
         "name": str(row.get("name", "")),
         "artists": str(row.get("artists", "")),
@@ -142,6 +158,7 @@ def format_song(row: pd.Series) -> dict:
         "moods": moods[:3],
         "primary_mood": moods[0] if moods else "Feel Good",
         "explicit": bool(_safe(row.get("explicit"), int, 0)),
+        "cover_url": cover_url,
     }
 
     for feat in FEAT_AUDIO:
@@ -209,11 +226,21 @@ async def search(q: str, limit: int = 10):
     scored.loc[mask_starts, "_s"]  = 3
     scored.loc[mask_exact,  "_s"]  = 4
 
-    results = (scored[scored["_s"] > 0]
-               .sort_values(["_s", "popularity"], ascending=[False, False])
-               .head(limit))
+    filtered = (scored[scored["_s"] > 0]
+                .sort_values(["_s", "popularity"], ascending=[False, False]))
 
-    return [format_song(row) for _, row in results.iterrows()]
+    # Deduplicate by name — keep the most popular version of each song
+    seen: set = set()
+    deduped = []
+    for _, row in filtered.iterrows():
+        name_key = str(row["name"]).lower().strip()
+        if name_key not in seen:
+            seen.add(name_key)
+            deduped.append(row)
+        if len(deduped) >= limit:
+            break
+
+    return [format_song(row) for row in deduped]
 
 
 @app.get("/api/popular")
@@ -323,11 +350,26 @@ async def genres(limit: int = 30):
 
 
 @app.get("/api/genre/{genre_name}")
-async def songs_by_genre(genre_name: str, limit: int = 24):
+async def songs_by_genre(genre_name: str, page: int = 1, page_size: int = 12):
     td = _td()
     mask = td["genres"].apply(lambda gs: isinstance(gs, list) and genre_name in gs)
-    subset = td[mask].nlargest(limit, "popularity")
-    return [format_song(row) for _, row in subset.iterrows()]
+    subset = td[mask].sort_values("popularity", ascending=False).reset_index(drop=True)
+
+    total_items = len(subset)
+    total_pages = max(1, (total_items + page_size - 1) // page_size)
+    page = max(1, min(page, total_pages))
+
+    start = (page - 1) * page_size
+    end   = start + page_size
+    page_df = subset.iloc[start:end]
+
+    return {
+        "items":       [format_song(row) for _, row in page_df.iterrows()],
+        "page":        page,
+        "page_size":   page_size,
+        "total_pages": total_pages,
+        "total_items": total_items,
+    }
 
 
 @app.get("/api/moods")
@@ -345,11 +387,27 @@ async def moods():
 
 
 @app.get("/api/mood/{mood_name}")
-async def songs_by_mood(mood_name: str, limit: int = 24):
+async def songs_by_mood(mood_name: str, page: int = 1, page_size: int = 12):
     td = _td()
     mask = td["moods"].apply(lambda ms: isinstance(ms, list) and mood_name in ms)
-    subset = td[mask].nlargest(limit, "popularity")
-    return [format_song(row) for _, row in subset.iterrows()]
+    # Sort by popularity so the best songs appear on page 1
+    subset = td[mask].sort_values("popularity", ascending=False).reset_index(drop=True)
+
+    total_items = len(subset)
+    total_pages = max(1, (total_items + page_size - 1) // page_size)
+    page = max(1, min(page, total_pages))
+
+    start = (page - 1) * page_size
+    end   = start + page_size
+    page_df = subset.iloc[start:end]
+
+    return {
+        "items":       [format_song(row) for _, row in page_df.iterrows()],
+        "page":        page,
+        "page_size":   page_size,
+        "total_pages": total_pages,
+        "total_items": total_items,
+    }
 
 
 @app.get("/api/decade/{decade}")
