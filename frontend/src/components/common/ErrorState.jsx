@@ -6,7 +6,7 @@ export default function ErrorState({ message, onRetry }) {
       </div>
       <h3 className="text-th-text text-[18px] font-semibold mb-2 tracking-tight">Something went wrong</h3>
       <p className="text-th-secondary text-[14px] max-w-sm leading-relaxed mb-6">
-        {message || "Could not connect to the backend. Make sure the FastAPI server is running on port 8000."}
+        {message || "Could not load data. The server may be waking up — please wait a moment and try again."}
       </p>
       {onRetry && (
         <button
