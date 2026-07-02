@@ -2,12 +2,14 @@
 from pathlib import Path
 from huggingface_hub import hf_hub_download
 
-REPO = "Sachin263/spotify-rec-data" 
+REPO = "Sachin263/spotify-rec-data"
 
+# local_path -> filename on HF Hub
 files = {
+    "models/recommender_payload.pkl":     "recommender_payload.pkl",
     "data/processed/data_clean.csv":      "data_clean.csv",
     "data/processed/data_with_cover.csv": "data_with_cover.csv",
-    "models/recommender_payload.pkl":     "recommender_payload.pkl",
+    "data/raw/data_w_genres.csv":         "data_w_genres.csv",
 }
 
 for local_path, repo_filename in files.items():
@@ -15,9 +17,13 @@ for local_path, repo_filename in files.items():
     if not dest.exists():
         print(f"Downloading {repo_filename}…")
         dest.parent.mkdir(parents=True, exist_ok=True)
-        hf_hub_download(repo_id=REPO, filename=repo_filename,
-                        repo_type="dataset", local_dir=str(dest.parent),
-                        local_dir_use_symlinks=False)
+        hf_hub_download(
+            repo_id=REPO,
+            filename=repo_filename,
+            repo_type="dataset",
+            local_dir=str(dest.parent),
+            local_dir_use_symlinks=False,
+        )
         print(f"  → saved to {dest}")
     else:
         print(f"  ✓ {dest} already present")
